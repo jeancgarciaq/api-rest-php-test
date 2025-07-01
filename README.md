@@ -112,34 +112,34 @@ Con Virtual Host: http://cotizaciones.test/ (o http://cotizaciones.test/index.ht
 
 Sin Virtual Host: http://localhost/tu_nombre_del_proyecto/public/index.html
 
-Estructura del Proyecto
->tu_proyecto/
->├── public/                 # Archivos públicos (HTML, CSS, JS)
->│   ├── index.html          # Interfaz de usuario del frontend
->│   └── assets/             # Recursos estáticos
->│       ├── css/
->│       │   └── style.css   # Estilos CSS de la aplicación
->│       └── js/
->│           └── script.js   # Lógica JavaScript del frontend (AJAX)
->├── src/                    # Código fuente PHP (clases y lógica de negocio)
->│   ├── Database.php        # Clase para la conexión y operaciones de DB
->│   └── ApiRouter.php       # Clase para manejar las rutas y la lógica de la API
->├── vendor/                 # Dependencias de Composer
->├── api.php                 # Punto de entrada principal de la API REST (backend)
->├── composer.json           # Definiciones de dependencias de Composer
->├── composer.lock           # Bloqueo de versiones de Composer
->├── .env                    # Variables de entorno (credenciales DB, etc.)
->└── .gitignore              # Archivos y directorios a ignorar por Git
+**Estructura del Proyecto**
+```
+tu_proyecto/
+├── public/                 # Archivos públicos (HTML, CSS, JS)
+│   ├── index.html          # Interfaz de usuario del frontend
+│   └── assets/             # Recursos estáticos
+│       ├── css/
+│       │   └── style.css   # Estilos CSS de la aplicación
+│       └── js/
+│           └── script.js   # Lógica JavaScript del frontend (AJAX)
+├── src/                    # Código fuente PHP (clases y lógica de negocio)
+│   ├── Database.php        # Clase para la conexión y operaciones de DB
+│   └── ApiRouter.php       # Clase para manejar las rutas y la lógica de la API
+├── vendor/                 # Dependencias de Composer
+├── api.php                 # Punto de entrada principal de la API REST (backend)
+├── composer.json           # Definiciones de dependencias de Composer
+├── composer.lock           # Bloqueo de versiones de Composer
+├── .env                    # Variables de entorno (credenciales DB, etc.)
+└── .gitignore              # Archivos y directorios a ignorar por Git
+```
 
 ## Endpoints de la API
 | Método HTTP | Ruta Descripción | Parámetros (Body/Query) | Ejemplo de Cuerpo (JSON)|
 |-------------|------------------|-------------------------|-------------------------|
 GET | /api.php | Obtiene todas las cotizaciones. | (Ninguno) |
 GET | /api.php?fecha | Obtiene una cotización por fecha. | fecha=YYYY-MM-DD (en la URL) |
-POST | /api.php | Crea una nueva cotización. | fecha, bcv (requeridos); apertura, cierre (opcionales)
-{ "fecha": "2024-07-01", "apertura": 36.50, "cierre": 36.60, "bcv": 36.55 } |
-PUT | /api.php | Actualiza una cotización existente por fecha. | fecha (requerido); apertura, cierre, bcv (al menos uno opcional)
-{ "fecha": "2024-07-01", "cierre": 36.65 } |
+POST | /api.php | Crea una nueva cotización: fecha, bcv (requeridos); apertura, cierre (opcionales) | { "fecha": "2024-07-01", "apertura": 36.50, "cierre": 36.60, "bcv": 36.55 } |
+PUT | /api.php | Actualiza una cotización existente por fecha: fecha (requerido); apertura, cierre, bcv (al menos uno opcional) | { "fecha": "2024-07-01", "cierre": 36.65 } |
 
 ## Contribución
 ¡Las contribuciones son bienvenidas! Si deseas mejorar este proyecto, por favor:
