@@ -1,0 +1,21 @@
+{
+    "name": "jeancgarciaq/mi-api-cotizaciones",
+    "description": "API REST para cotizaciones del dólar",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Jean Carlo Garcia",
+            "email": "jcvictory@hotmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "vlucas/phpdotenv": "^5.6@dev"
+    }
+}
