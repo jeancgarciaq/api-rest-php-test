@@ -1,0 +1,76 @@
+/*
+ * style.css
+ * Descripción: Contiene los estilos globales para la aplicación de cotizaciones.
+ * Autor: [Tu Nombre]
+ * Fecha: 2024-07-01
+ */
+
+/* --- Estilos Generales --- */
+body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+
+/*
+ * Contenedor principal de la aplicación.
+ * Define el ancho máximo, centrado y estilos de sombra.
+ */
+.container { max-width: 800px; margin: auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+
+h1, h2 { color: #0056b3; }
+
+/* --- Estilos de Formularios --- */
+form { margin-bottom: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9; }
+
+label { display: block; margin-bottom: 8px; font-weight: bold; }
+
+/* Comentario en línea para una regla específica */
+input[type="date"], input[type="number"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+button:hover {
+            background-color: #0056b3;
+        }
+
+/*
+ * Estilos para mensajes de estado (éxito/error).
+ * Se aplican dinámicamente con JavaScript.
+*/
+#message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            color: white;
+        }
+
+.success { background-color: #28a745; }
+
+.error { background-color: #dc3545; }
+
+/**
+ * Estilos del resultado
+*/
+#result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+#result p { margin: 5px 0; }
+
+.result-label { font-weight: bold; color: #0056b3; }
