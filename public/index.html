@@ -1,76 +1,88 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Cotizaciones del Dólar</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Gestor de Cotizaciones del Dólar</title>
+  <link rel="stylesheet" href="/public/assets/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Gestor de Cotizaciones del Dólar (PHP + AJAX)</h1>
+  <div class="container">
+    <h1>Gestor de Cotizaciones del Dólar (PHP + AJAX)</h1>
 
-        ---
+     <!-- Sección LOGIN -->
+    <section id="loginSection">
+      <h2>Iniciar Sesión</h2>
+      <form id="loginForm" method="POST" action="/api.php/login">
+        <label for="username">Usuario:</label>
+        <input type="text" id="username" name="username" required>
+        <label for="password">Contraseña:</label>
+        <input type="password" id="password" name="password" required>
+        <button type="submit">Login</button>
+      </form>
+      <button id="logoutBtn" class="btn-logout">Logout</button>
+      <p>Token actual: <span id="currentApiToken" class="token">Ninguno</span></p>
+      <hr>
+    </section>
 
-        <h2>Consultar Cotización</h2>
-        <form id="consultForm">
-            <label for="consultFecha">Fecha:</label>
-            <input type="date" id="consultFecha" required>
-            <button type="submit">Consultar</button>
-        </form>
+    <!-- Sección CONSULTA -->
+    <section id="consultSection">
+      <h2>Consultar Cotización</h2>
+      <form id="consultForm">
+        <label for="consultFecha">Fecha:</label>
+        <input type="date" id="consultFecha" name="fecha" required>
+        <button type="submit">Consultar</button>
+      </form>
+      <div id="result">
+        <h3>Resultado de la Consulta:</h3>
+        <p><span class="result-label">Fecha:</span> <span id="resultFecha"></span></p>
+        <p><span class="result-label">Apertura:</span> <span id="resultApertura"></span></p>
+        <p><span class="result-label">Cierre:</span> <span id="resultCierre"></span></p>
+        <p><span class="result-label">BCV:</span> <span id="resultBcv"></span></p>
+        <hr>
+        <h4>Promedios Calculados:</h4>
+        <p><span class="result-label">Promedio (BCV + Apertura) / 2:</span> <span id="resultPromedioApertura"></span></p>
+        <p><span class="result-label">Promedio (BCV + Cierre) / 2:</span> <span id="resultPromedioCierre"></span></p>
+      </div>
+      <hr>
+    </section>
 
-        ---
+    <!-- Sección AÑADIR (sólo admin/editor) -->
+    <section id="addSection">
+      <h2>Añadir Nueva Cotización</h2>
+      <form id="addForm">
+        <label for="addFecha">Fecha:</label>
+        <input type="date" id="addFecha" name="fecha" required>
+        <label for="addBcv">Valor BCV (requerido):</label>
+        <input type="number" id="addBcv" name="bcv" step="0.01" required>
+        <label for="addApertura">Apertura (opcional):</label>
+        <input type="number" id="addApertura" name="apertura" step="0.01" value="0.00">
+        <label for="addCierre">Cierre (opcional):</label>
+        <input type="number" id="addCierre" name="cierre" step="0.01" value="0.00">
+        <button type="submit">Añadir</button>
+      </form>
+      <hr>
+    </section>
 
-        <h2>Añadir Nueva Cotización</h2>
-        <form id="addForm">
-            <label for="addFecha">Fecha:</label>
-            <input type="date" id="addFecha" required>
+    <!-- Sección ACTUALIZAR (sólo admin/editor) -->
+    <section id="updateSection">
+      <h2>Actualizar Cotización</h2>
+      <form id="updateForm">
+        <label for="updateFecha">Fecha a actualizar:</label>
+        <input type="date" id="updateFecha" name="fecha" required>
+        <label for="updateApertura">Nueva Apertura (opcional):</label>
+        <input type="number" id="updateApertura" name="apertura" step="0.01">
+        <label for="updateCierre">Nuevo Cierre (opcional):</label>
+        <input type="number" id="updateCierre" name="cierre" step="0.01">
+        <label for="updateBcv">Nuevo BCV (opcional):</label>
+        <input type="number" id="updateBcv" name="bcv" step="0.01">
+        <button type="submit">Actualizar</button>
+      </form>
+    </section>
 
-            <label for="addBcv">Valor BCV (requerido):</label>
-            <input type="number" id="addBcv" step="0.01" required>
+    <div id="message"></div>
+  </div>
 
-            <label for="addApertura">Apertura (opcional, se inicializa en 0):</label>
-            <input type="number" id="addApertura" step="0.01" value="0.00">
-
-            <label for="addCierre">Cierre (opcional, se inicializa en 0):</label>
-            <input type="number" id="addCierre" step="0.01" value="0.00">
-
-            <button type="submit">Añadir</button>
-        </form>
-
-        ---
-
-        <h2>Actualizar Cotización</h2>
-        <form id="updateForm">
-            <label for="updateFecha">Fecha de la cotización a actualizar:</label>
-            <input type="date" id="updateFecha" required>
-
-            <label for="updateApertura">Nueva Apertura (opcional):</label>
-            <input type="number" id="updateApertura" step="0.01">
-
-            <label for="updateCierre">Nuevo Cierre (opcional):</label>
-            <input type="number" id="updateCierre" step="0.01">
-
-            <label for="updateBcv">Nuevo BCV (opcional):</label>
-            <input type="number" id="updateBcv" step="0.01">
-
-            <button type="submit">Actualizar</button>
-        </form>
-
-        <div id="message"></div>
-        <div id="result">
-            <h3>Resultado de la Consulta:</h3>
-            <p><span class="result-label">Fecha:</span> <span id="resultFecha"></span></p>
-            <p><span class="result-label">Apertura:</span> <span id="resultApertura"></span></p>
-            <p><span class="result-label">Cierre:</span> <span id="resultCierre"></span></p>
-            <p><span class="result-label">BCV:</span> <span id="resultBcv"></span></p>
-            <hr>
-            <h4>Promedios Calculados:</h4>
-            <p><span class="result-label">Promedio (BCV + Apertura) / 2:</span> <span id="resultPromedioApertura"></span></p>
-            <p><span class="result-label">Promedio (BCV + Cierre) / 2:</span> <span id="resultPromedioCierre"></span></p>
-        </div>
-    </div>
-
-    <script src="assets/js/script.js"></script>
+  <script src="/public/assets/js/script.js" defer></script>
 </body>
 </html>
