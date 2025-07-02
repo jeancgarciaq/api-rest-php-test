@@ -1,0 +1,12 @@
+[
+  {
+    "username": "admin",
+    "password_hash": "$2y$12$qk7bvWggqyIGQPtvZQHvs.Nd6VmvAsG5ZDwSC0txTznL3mLdYJ/ke",
+    "roles": ["admin", "editor"]
+  },
+  {
+    "username": "user",
+    "password_hash": "$2y$12$Y70fMYOfo24IOTJllsbQMOhf9ABoQeA5Ozd6Pnr7ruA1GjwT6w64e",
+    "roles": ["viewer"]
+  }
+]

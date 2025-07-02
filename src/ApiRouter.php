@@ -1,231 +1,360 @@
 <?php
 
-// Define el namespace para esta clase
-namespace App; 
+namespace App;
 
-// Asegurarse de que mysqli esté disponible en este scope
 use mysqli;
 
 /**
- * Clase ApiRouter
+ * Class ApiRouter
  *
- * Gestiona el enrutamiento de las solicitudes HTTP (GET, POST, PUT)
- * para la API de cotizaciones y se comunica con la base de datos.
+ * Gestiona el enrutamiento de las solicitudes HTTP para la API de cotizaciones.
+ * Soporta:
+ *  - POST   /api.php/login         ⇒ Autenticación (genera JWT)
+ *  - GET    /api.php[?fecha=...]   ⇒ Listar o leer cotizaciones
+ *  - POST   /api.php               ⇒ Crear cotización (roles: admin, editor)
+ *  - PUT    /api.php               ⇒ Actualizar cotización (roles: admin, editor)
+ *  - DELETE /api.php[?fecha=...]   ⇒ Eliminar cotización (roles: admin, editor)
+ *
+ * Controla JWT, permisos por método/rol y devuelve JSON con códigos HTTP adecuados.
+ *
+ * @package App
  */
-class ApiRouter {/**
-     * @var mysqli La instancia de conexión a la base de datos.
-     */
-    private $mysqli;
+class ApiRouter
+{
+    /** @var mysqli Conexión MySQLi */
+    private mysqli $mysqli;
+
+    /** @var Auth Servicio de autenticación JWT */
+    private Auth $auth;
+
+    /** @var object|null Payload del token JWT después de autenticar */
+    private ?object $userData = null;
 
     /**
-     * Constructor de la clase ApiRouter.
+     * ApiRouter constructor.
      *
-     * @param mysqli $mysqliConnection La conexión a la base de datos mysqli.
+     * @param mysqli $mysqli Conexión a la base de datos.
+     * @param Auth   $auth   Servicio de autenticación JWT.
      */
-    public function __construct($mysqliConnection) {
-        $this->mysqli = $mysqliConnection;
+    public function __construct(mysqli $mysqli, Auth $auth)
+    {
+        $this->mysqli = $mysqli;
+        $this->auth   = $auth;
     }
 
     /**
-     * Maneja la solicitud HTTP entrante.
-     *
-     * Establece las cabeceras HTTP necesarias para CORS y JSON,
-     * y delega la solicitud al método apropiado según el verbo HTTP.
+     * Maneja la petición HTTP, determina ruta/método y ejecuta el handler.
      *
      * @return void
      */
-    public function handleRequest() {
-        header("Access-Control-Allow-Origin: *");
-        header("Content-Type: application/json; charset=UTF-8");
-        header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-        header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-
+    public function handleRequest(): void
+    {
+        // 1) Extraer método y ruta limpia
         $method = $_SERVER['REQUEST_METHOD'];
+        $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $prefix = '/api.php';
+        $path   = substr($uri, strrpos($uri, $prefix) + strlen($prefix));
 
-        switch ($method) {
+        // 2) Preflight CORS (responde OPTIONS sin más lógica)
+        if ($method === 'OPTIONS') {
+            http_response_code(204);
+            exit;
+        }
+
+        // 3) Ruta pública: login
+        if ($method === 'POST' && $path === '/login') {
+            $this->handleLoginRequest();
+            return;
+        }
+
+        // 4) Autenticación JWT para cualquier otra ruta
+        $bearer = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        if (!preg_match('/Bearer\s(\S+)/', $bearer, $m)) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Sin token']);
+            exit;
+        }
+        $payload = $this->auth->verifyToken($m[1]);
+        if ($payload === null) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Token inválido o expirado']);
+            exit;
+        }
+        $this->userData = $payload;
+
+        // 5) Control de acceso por método + roles
+        $allowedMethods = $this->auth->getAllowedMethods($payload->roles ?? []);
+        if (!in_array($method, $allowedMethods, true)) {
+            http_response_code(403);
+            echo json_encode(['error' => "No tienes permiso para $method"]);
+            exit;
+        }
+
+        // 6) Enrutamiento protegido
+        switch ("{$method} {$path}") {
+            case 'GET ':
             case 'GET':
                 $this->handleGetRequest();
                 break;
+
+            case 'POST ':
             case 'POST':
                 $this->handlePostRequest();
                 break;
+
+            case 'PUT ':
             case 'PUT':
                 $this->handlePutRequest();
                 break;
-            case 'OPTIONS': // Manejar las solicitudes OPTIONS para CORS
-                http_response_code(200);
+
+            case 'DELETE ':
+            case 'DELETE':
+                $this->handleDeleteRequest();
                 break;
+
             default:
-                http_response_code(405); // Método no permitido
-                echo json_encode(["message" => "Método no permitido."]);
-                break;
+                http_response_code(404);
+                echo json_encode(['error' => 'Ruta no encontrada']);
         }
     }
 
     /**
-     * Maneja las solicitudes GET para consultar cotizaciones.
+     * Lee y decodifica JSON del cuerpo de la petición.
+     * Responde 400 y termina si el JSON es inválido.
      *
-     * Puede consultar una cotización específica por fecha o todas las cotizaciones.
-     * Responde con datos JSON o un mensaje de error.
+     * @return array Datos decodificados.
+     */
+    private function getJsonInput(): array
+    {
+        $raw  = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            http_response_code(400);
+            echo json_encode(['error' => 'JSON inválido']);
+            exit;
+        }
+        return $data;
+    }
+
+    /**
+     * Handler de POST /api.php/login.
+     * Valida credenciales y genera un JWT.
      *
      * @return void
      */
-    private function handleGetRequest() {
-        if (isset($_GET['fecha'])) {
-            $fecha = $_GET['fecha'];
-            $stmt = $this->mysqli->prepare("SELECT fecha, apertura, cierre, bcv FROM dolar WHERE fecha = ?");
-            $stmt->bind_param("s", $fecha);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            if ($result->num_rows > 0) {
-                $row = $result->fetch_assoc();
-                echo json_encode($row);
-            } else {
-                http_response_code(404);
-                echo json_encode(["message" => "Cotización no encontrada para la fecha " . $fecha]);
-            }
-            $stmt->close();
-        } else {
-            $result = $this->mysqli->query("SELECT fecha, apertura, cierre, bcv FROM dolar ORDER BY fecha DESC");
-            if ($result->num_rows > 0) {
-                $cotizaciones = [];
-                while ($row = $result->fetch_assoc()) {
-                    $cotizaciones[] = $row;
-                }
-                echo json_encode($cotizaciones);
-            } else {
-                http_response_code(200);
-                echo json_encode([]);
-            }
+    private function handleLoginRequest(): void
+    {
+        $data = $this->getJsonInput();
+        if (empty($data['username']) || empty($data['password'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Usuario y contraseña requeridos']);
+            return;
         }
+
+        $user = $this->auth->authenticate($data['username'], $data['password']);
+        if (!$user) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Credenciales inválidas']);
+            return;
+        }
+
+        $token = $this->auth->generateToken($user);
+        echo json_encode(['token' => $token]);
     }
 
     /**
-     * Maneja las solicitudes POST para añadir nuevas cotizaciones.
-     *
-     * Espera datos JSON en el cuerpo de la solicitud (fecha, bcv, apertura, cierre).
-     * Valida los datos y los inserta en la base de datos.
-     * Responde con un mensaje JSON de éxito o error.
+     * Handler de GET /api.php[?fecha=...].
+     * Obtiene una cotización por fecha o lista todas.
      *
      * @return void
-    */
-    private function handlePostRequest() {
-        $data = json_decode(file_get_contents("php://input"), true);
+     */
+    private function handleGetRequest(): void
+    {
+        if (isset($_GET['fecha'])) {
+            $fecha = $_GET['fecha'];
+            $stmt  = $this->mysqli->prepare(
+                "SELECT fecha, apertura, cierre, bcv FROM dolar WHERE fecha = ?"
+            );
+            if (!$stmt) {
+                http_response_code(500);
+                echo json_encode(['error' => 'Error en GET por fecha: ' . $this->mysqli->error]);
+                return;
+            }
+            $stmt->bind_param('s', $fecha);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res->num_rows > 0) {
+                echo json_encode($res->fetch_assoc());
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => "No existe cotización para $fecha"]);
+            }
+            $stmt->close();
+            return;
+        }
 
-        $fecha = $data['fecha'] ?? null;
-        $apertura = $data['apertura'] ?? 0.00;
-        $cierre = $data['cierre'] ?? 0.00;
-        $bcv = $data['bcv'] ?? null;
+        $res = $this->mysqli->query("SELECT fecha, apertura, cierre, bcv FROM dolar ORDER BY fecha DESC");
+        if (!$res) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Error en GET all: ' . $this->mysqli->error]);
+            return;
+        }
+        $rows = [];
+        while ($row = $res->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        echo json_encode($rows);
+    }
 
-        if (!$fecha || !$bcv) {
+    /**
+     * Handler de POST /api.php.
+     * Inserta una nueva cotización.
+     *
+     * @return void
+     */
+    private function handlePostRequest(): void
+    {
+        $data     = $this->getJsonInput();
+        $fecha    = $data['fecha']    ?? null;
+        $apertura = $data['apertura'] ?? 0.0;
+        $cierre   = $data['cierre']   ?? 0.0;
+        $bcv      = $data['bcv']      ?? null;
+
+        if (!$fecha || !is_numeric($bcv)) {
             http_response_code(400);
-            echo json_encode(["message" => "Fecha y BCV son campos requeridos."]);
+            echo json_encode(['error' => 'Fecha y BCV (numérico) requeridos']);
             return;
         }
 
-        $stmt_check = $this->mysqli->prepare("SELECT id FROM dolar WHERE fecha = ?");
-        $stmt_check->bind_param("s", $fecha);
-        $stmt_check->execute();
-        $stmt_check->store_result();
-
-        if ($stmt_check->num_rows > 0) {
+        // Verificar existencia
+        $chk = $this->mysqli->prepare("SELECT id FROM dolar WHERE fecha = ?");
+        $chk->bind_param('s', $fecha);
+        $chk->execute();
+        $chk->store_result();
+        if ($chk->num_rows > 0) {
             http_response_code(409);
-            echo json_encode(["message" => "Ya existe una cotización para la fecha " . $fecha]);
-            $stmt_check->close();
+            echo json_encode(['error' => "Ya existe cotización para $fecha"]);
+            $chk->close();
             return;
         }
-        $stmt_check->close();
+        $chk->close();
 
-        $stmt = $this->mysqli->prepare("INSERT INTO dolar (fecha, apertura, cierre, bcv) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("sddd", $fecha, $apertura, $cierre, $bcv);
-
+        $stmt = $this->mysqli->prepare(
+            "INSERT INTO dolar (fecha, apertura, cierre, bcv) VALUES (?, ?, ?, ?)"
+        );
+        $stmt->bind_param('sddd', $fecha, $apertura, $cierre, $bcv);
         if ($stmt->execute()) {
             http_response_code(201);
-            echo json_encode(["message" => "Cotización añadida exitosamente.", "id" => $this->mysqli->insert_id]);
+            echo json_encode([
+                'message' => 'Cotización añadida',
+                'id'      => $this->mysqli->insert_id
+            ]);
         } else {
             http_response_code(500);
-            echo json_encode(["message" => "Error al añadir cotización: " . $stmt->error]);
+            echo json_encode(['error' => 'Error al insertar: ' . $stmt->error]);
         }
         $stmt->close();
     }
 
     /**
-     * Maneja las solicitudes PUT para actualizar cotizaciones existentes.
-     *
-     * Espera datos JSON en el cuerpo de la solicitud (fecha, y opcionalmente apertura, cierre, bcv).
-     * Actualiza los campos proporcionados para la fecha especificada.
-     * Responde con un mensaje JSON de éxito o error.
+     * Handler de PUT /api.php.
+     * Actualiza cotización existente según campos enviados.
      *
      * @return void
-    */
-    private function handlePutRequest() {
-        $data = json_decode(file_get_contents("php://input"), true);
-        if (json_last_error() !== JSON_ERROR_NONE || empty($data)) {
-            parse_str(file_get_contents("php://input"), $data); // Fallback for x-www-form-urlencoded
-        }
-
-        $fecha = $data['fecha'] ?? null;
+     */
+    private function handlePutRequest(): void
+    {
+        $data     = $this->getJsonInput();
+        $fecha    = $data['fecha']    ?? null;
         $apertura = $data['apertura'] ?? null;
-        $cierre = $data['cierre'] ?? null;
-        $bcv = $data['bcv'] ?? null;
+        $cierre   = $data['cierre']   ?? null;
+        $bcv      = $data['bcv']      ?? null;
 
         if (!$fecha) {
             http_response_code(400);
-            echo json_encode(["message" => "La fecha es requerida para actualizar."]);
+            echo json_encode(['error' => 'La fecha es requerida']);
             return;
         }
 
-        $set_clauses = [];
+        $sets   = [];
         $params = [];
-        $types = "";
+        $types  = '';
 
-        if ($apertura !== null) {
-            $set_clauses[] = "apertura = ?";
+        if (is_numeric($apertura)) {
+            $sets[]   = 'apertura = ?';
             $params[] = $apertura;
-            $types .= "d";
+            $types   .= 'd';
         }
-        if ($cierre !== null) {
-            $set_clauses[] = "cierre = ?";
+        if (is_numeric($cierre)) {
+            $sets[]   = 'cierre = ?';
             $params[] = $cierre;
-            $types .= "d";
+            $types   .= 'd';
         }
-        if ($bcv !== null) {
-            $set_clauses[] = "bcv = ?";
+        if (is_numeric($bcv)) {
+            $sets[]   = 'bcv = ?';
             $params[] = $bcv;
-            $types .= "d";
+            $types   .= 'd';
         }
 
-        if (empty($set_clauses)) {
+        if (empty($sets)) {
             http_response_code(400);
-            echo json_encode(["message" => "No se proporcionaron campos para actualizar."]);
+            echo json_encode(['error' => 'Ningún campo válido para actualizar']);
             return;
         }
 
-        $query = "UPDATE dolar SET " . implode(", ", $set_clauses) . " WHERE fecha = ?";
         $params[] = $fecha;
-        $types .= "s";
+        $types   .= 's';
+        $sql      = 'UPDATE dolar SET ' . implode(', ', $sets) . ' WHERE fecha = ?';
 
-        $stmt = $this->mysqli->prepare($query);
-        if (!$stmt) {
-            http_response_code(500);
-            echo json_encode(["message" => "Error al preparar la consulta: " . $this->mysqli->error]);
-            return;
+        $stmt = $this->mysqli->prepare($sql);
+        $bind = array_merge([$types], $params);
+        $refs = [];
+        foreach ($bind as $i => $v) {
+            $refs[$i] = &$bind[$i];
         }
-
-        call_user_func_array([$stmt, 'bind_param'], array_merge([$types], $params));
+        call_user_func_array([$stmt, 'bind_param'], $refs);
 
         if ($stmt->execute()) {
             if ($stmt->affected_rows > 0) {
-                http_response_code(200);
-                echo json_encode(["message" => "Cotización actualizada exitosamente para la fecha " . $fecha]);
+                echo json_encode(['message' => "Cotización de $fecha actualizada"]);
             } else {
                 http_response_code(404);
-                echo json_encode(["message" => "Cotización no encontrada o sin cambios para la fecha " . $fecha]);
+                echo json_encode(['error' => "No se encontró o no cambió $fecha"]);
             }
         } else {
             http_response_code(500);
-            echo json_encode(["message" => "Error al actualizar cotización: " . $stmt->error]);
+            echo json_encode(['error' => 'Error al actualizar: ' . $stmt->error]);
+        }
+        $stmt->close();
+    }
+
+    /**
+     * Handler de DELETE /api.php[?fecha=...].
+     * Elimina la cotización por fecha.
+     *
+     * @return void
+     */
+    private function handleDeleteRequest(): void
+    {
+        if (!isset($_GET['fecha'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'La fecha es requerida para eliminar']);
+            return;
+        }
+        $fecha = $_GET['fecha'];
+        $stmt  = $this->mysqli->prepare("DELETE FROM dolar WHERE fecha = ?");
+        $stmt->bind_param('s', $fecha);
+
+        if ($stmt->execute()) {
+            if ($stmt->affected_rows > 0) {
+                echo json_encode(['message' => "Cotización de $fecha eliminada"]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['error' => "No existe cotización para $fecha"]);
+            }
+        } else {
+            http_response_code(500);
+            echo json_encode(['error' => 'Error al eliminar: ' . $stmt->error]);
         }
         $stmt->close();
     }
