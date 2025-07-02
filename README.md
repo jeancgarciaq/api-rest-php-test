@@ -50,17 +50,20 @@ tu_proyecto/
 │   ├── index.html          
 │   └── assets/             
 │       ├── css/
-│       │   └── style.css   
+│       │   └── style.css   # Estilos
 │       └── js/
 │           └── script.js   # Lógica JavaScript del frontend
 ├── src/                    
-│   ├── Database.php        
+│   ├── Database.php
+│   ├── Auth.php        
 │   └── ApiRouter.php       
 ├── vendor/                 
 ├── api.php                 
 ├── composer.json           
 ├── composer.lock           
-├── .env                    
+├── .env
+├── .htaccess
+├── users.json                    
 └── .gitignore              
 ```
 
